@@ -1,6 +1,8 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 void main() {
   runApp(MyApp());
@@ -55,6 +57,16 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   var selectedIndex = 0;
 
+  // true on web or desktop platforms
+  bool get isDesktop {
+    return kIsWeb ||
+        <TargetPlatform>[
+          TargetPlatform.macOS,
+          TargetPlatform.windows,
+          TargetPlatform.linux,
+        ].contains(defaultTargetPlatform);
+  }
+
   @override
   Widget build(BuildContext context) {
     // ...
@@ -71,42 +83,108 @@ class _MyHomePageState extends State<MyHomePage> {
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-// ...
+    // 2) Wrap it once so both layouts share the same styling
+    final mainArea = ColoredBox(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: page,
+    );
+
+    // 3) Use LayoutBuilder to adapt on width + platform
     return Scaffold(
-      body: Row(
-        children: [
-          SafeArea(
-            child: NavigationRail(
-              extended: false,
-              destinations: [
-                NavigationRailDestination(
-                  icon: Icon(Icons.home),
-                  label: Text('Home'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.favorite),
-                  label: Text('Favorites'),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // A) NARROW screens (<450dp) → always bottom nav
+          if (constraints.maxWidth < 450) {
+            return Column(
+              children: [
+                Expanded(child: mainArea),
+                SafeArea(
+                  child: BottomNavigationBar(
+                    items: const [
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.home),
+                        label: 'Home',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.favorite),
+                        label: 'Favorites',
+                      ),
+                    ],
+                    currentIndex: selectedIndex,
+                    onTap: (value) {
+                      setState(() {
+                        selectedIndex = value;
+                      });
+                    },
+                  ),
                 ),
               ],
-              selectedIndex: selectedIndex,
-              onDestinationSelected: (value) {
-                setState(() {
-                  selectedIndex = value;
-                });
-              },
-            ),
-          ),
-          Expanded(
-            child: Container(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              child: page,
-            ),
-          ),
-        ],
+            );
+          }
+
+          // B) WIDE screens (>=450dp) on DESKTOP/WEB → side rail
+          if (isDesktop) {
+            return Row(
+              children: [
+                SafeArea(
+                  child: NavigationRail(
+                    extended: false,
+                    destinations: const [
+                      NavigationRailDestination(
+                        icon: Icon(Icons.home),
+                        label: Text('Home'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.favorite),
+                        label: Text('Favorites'),
+                      ),
+                    ],
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: (value) {
+                      setState(() {
+                        selectedIndex = value;
+                      });
+                    },
+                  ),
+                ),
+                Expanded(child: mainArea),
+              ],
+            );
+          }
+
+          // C) WIDE screens on MOBILE (e.g. tablet in landscape) → fallback to bottom nav
+          return Column(
+            children: [
+              Expanded(child: mainArea),
+              SafeArea(
+                child: BottomNavigationBar(
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home),
+                      label: 'Home',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.favorite),
+                      label: 'Favorites',
+                    ),
+                  ],
+                  currentIndex: selectedIndex,
+                  onTap: (value) {
+                    setState(() {
+                      selectedIndex = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
+
+// ...
 
 class GeneratorPage extends StatelessWidget {
   @override
@@ -184,6 +262,7 @@ class FavoritesPage extends StatelessWidget {
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                           vertical: 8, horizontal: 16),
+                      leading: Icon(Icons.favorite),
                       title: Text(
                         pair.asPascalCase,
                       ),
